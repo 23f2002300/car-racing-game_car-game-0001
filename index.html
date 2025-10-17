@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2D Racing Game</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: sans-serif;
+            background-color: #222;
+            color: white;
+        }
+
+        #gameContainer {
+            position: relative;
+            width: 400px;
+            height: 600px;
+            margin: 20px auto;
+            background-color: #555;
+            overflow: hidden;
+        }
+
+        #road {
+            position: absolute;
+            top: 0;
+            left: 50%;
+            width: 100px;
+            height: 2000px; /* Increased height for scrolling effect */
+            background-color: #444;
+            transform: translateX(-50%);
+        }
+
+        .lane-marking {
+            position: absolute;
+            width: 4px;
+            height: 40px;
+            background-color: white;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+
+        #playerCar {
+            position: absolute;
+            bottom: 50px;
+            left: 50%;
+            width: 30px;
+            height: 50px;
+            background-color: #3498db;
+            transform: translateX(-50%);
+            border-radius: 5px;
+        }
+
+        .obstacle {
+            position: absolute;
+            width: 30px;
+            height: 50px;
+            background-color: #e74c3c;
+            border-radius: 5px;
+        }
+
+        #score {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            font-size: 20px;
+        }
+
+        #speed {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            font-size: 20px;
+        }
+
+        #gameOverScreen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            text-align: center;
+        }
+
+        #gameOverScreen h1 {
+            font-size: 3em;
+            margin-bottom: 20px;
+        }
+
+        #gameOverScreen p {
+            font-size: 1.5em;
+        }
+
+        #restartButton {
+            padding: 10px 20px;
+            font-size: 1.2em;
+            background-color: #2ecc71;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+
+        #startScreen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            text-align: center;
+        }
+
+        #startButton {
+            padding: 10px 20px;
+            font-size: 1.2em;
+            background-color: #2ecc71;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+
+        #startScreen h1{
+            font-size: 3em;
+            margin-bottom: 20px;
+        }
+
+        #grass-left, #grass-right {
+            position: absolute;
+            top: 0;
+            width: 150px;
+            height: 100%;
+            background-color: #32CD32;
+        }
+
+        #grass-left {
+            left: 0;
+        }
+
+        #grass-right {
+            right: 0;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <div id="grass-left"></div>
+        <div id="grass-right"></div>
+        <div id="road"></div>
+        <div id="playerCar"></div>
+        <div id="score">Score: 0</div>
+        <div id="speed">Speed: 1</div>
+        <div id="gameOverScreen">
+            <h1>Game Over</h1>
+            <p>Your Score: <span id="finalScore">0</span></p>
+            <p>High Score: <span id="highScore">0</span></p>
+            <button id="restartButton">Restart</button>
+        </div>
+        <div id="startScreen">
+            <h1>Racing Game</h1>
+            <p>Use left/right arrow keys to move.</p>
+            <button id="startButton">Start Game</button>
+        </div>
+    </div>
+
+    <script>
+        const gameContainer = document.getElementById('gameContainer');
+        const road = document.getElementById('road');
+        const playerCar = document.getElementById('playerCar');
+        const scoreDisplay = document.getElementById('score');
+        const speedDisplay = document.getElementById('speed');
+        const gameOverScreen = document.getElementById('gameOverScreen');
+        const finalScoreDisplay = document.getElementById('finalScore');
+        const highScoreDisplay = document.getElementById('highScore');
+        const restartButton = document.getElementById('restartButton');
+        const startScreen = document.getElementById('startScreen');
+        const startButton = document.getElementById('startButton');
+        const grassLeft = document.getElementById('grass-left');
+        const grassRight = document.getElementById('grass-right');
+
+        let score = 0;
+        let speed = 1;
+        let playerX = 0;
+        let roadPosition = 0;
+        let obstacles = [];
+        let animationFrameId;
+        let isGameOver = false;
+        let highScore = localStorage.getItem('highScore') || 0;
+
+        highScoreDisplay.textContent = highScore;
+
+        const playerSpeed = 5;
+        const obstacleSpeed = 2;
+        const laneMarkingHeight = 40;
+
+        // Function to generate lane markings
+        function generateLaneMarkings() {
+            const roadHeight = road.offsetHeight;
+            const numMarkings = roadHeight / (laneMarkingHeight * 2);
+
+            for (let i = 0; i < numMarkings; i++) {
+                const laneMarking = document.createElement('div');
+                laneMarking.classList.add('lane-marking');
+                laneMarking.style.top = (i * laneMarkingHeight * 2) + 'px';
+                road.appendChild(laneMarking);
+            }
+        }
+
+        generateLaneMarkings();
+
+        // Function to create a new obstacle
+        function createObstacle() {
+            const obstacle = document.createElement('div');
+            obstacle.classList.add('obstacle');
+            obstacle.style.left = Math.random() * (road.offsetWidth - 30) + 'px';
+            obstacle.style.top = -50 + 'px';
+            obstacle.style.backgroundColor = `hsl(${Math.random() * 360}, 100%, 50%)`; // Random colors
+            road.appendChild(obstacle);
+            obstacles.push(obstacle);
+        }
+
+        // Function to update game state
+        function updateGame() {
+            if (isGameOver) return;
+
+            // Update road position for scrolling effect
+            roadPosition += 3 * speed;
+            roadPosition %= (laneMarkingHeight * 2);
+
+            const laneMarkings = document.querySelectorAll('.lane-marking');
+            laneMarkings.forEach(marking => {
+                marking.style.top = parseInt(marking.style.top) + (3 * speed) + 'px';
+                if (parseInt(marking.style.top) > road.offsetHeight) {
+                    marking.style.top = -laneMarkingHeight + 'px';
+                }
+            });
+
+
+            // Move obstacles
+            obstacles.forEach(obstacle => {
+                obstacle.style.top = parseInt(obstacle.style.top) + (obstacleSpeed * speed) + 'px';
+
+                // Remove obstacle if it goes off screen
+                if (parseInt(obstacle.style.top) > gameContainer.offsetHeight) {
+                    obstacle.remove();
+                    obstacles.splice(obstacles.indexOf(obstacle), 1);
+                }
+            });
+
+            // Collision detection
+            const playerRect = playerCar.getBoundingClientRect();
+            obstacles.forEach(obstacle => {
+                const obstacleRect = obstacle.getBoundingClientRect();
+
+                if (!(playerRect.right < obstacleRect.left ||
+                    playerRect.left > obstacleRect.right ||
+                    playerRect.bottom < obstacleRect.top ||
+                    playerRect.top > obstacleRect.bottom)) {
+                    gameOver();
+                }
+            });
+
+            // Increase score and speed
+            score += 1;
+            scoreDisplay.textContent = 'Score: ' + score;
+
+            if (score % 500 === 0) {
+                speed += 0.2;
+                speedDisplay.textContent = 'Speed: ' + speed.toFixed(1);
+            }
+
+            // Spawn new obstacles randomly
+            if (Math.random() < 0.02 * speed) {
+                createObstacle();
+            }
+
+            animationFrameId = requestAnimationFrame(updateGame);
+        }
+
+        // Function to handle game over
+        function gameOver() {
+            isGameOver = true;
+            finalScoreDisplay.textContent = score;
+
+            if (score > highScore) {
+                highScore = score;
+                localStorage.setItem('highScore', score);
+                highScoreDisplay.textContent = highScore;
+            }
+
+            gameOverScreen.style.display = 'flex';
+            cancelAnimationFrame(animationFrameId);
+        }
+
+        // Event listeners for player movement
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'ArrowLeft' || event.key === 'a') {
+                playerX -= playerSpeed;
+            } else if (event.key === 'ArrowRight' || event.key === 'd') {
+                playerX += playerSpeed;
+            }
+
+            // Keep player within bounds
+            playerX = Math.max(-road.offsetWidth / 2 + 15, Math.min(road.offsetWidth / 2 - 15, playerX));
+            playerCar.style.transform = `translateX(${playerX}px)`;
+        });
+
+        // Event listener for restart button
+        restartButton.addEventListener('click', () => {
+            // Reset game state
+            score = 0;
+            speed = 1;
+            playerX = 0;
+            roadPosition = 0;
+            obstacles.forEach(obstacle => obstacle.remove());
+            obstacles = [];
+            isGameOver = false;
+
+            // Reset player position
+            playerCar.style.transform = `translateX(0px)`;
+            scoreDisplay.textContent = 'Score: 0';
+            speedDisplay.textContent = 'Speed: 1';
+            gameOverScreen.style.display = 'none';
+            road.style.top = '0px';
+
+            // Restart the game loop
+            updateGame();
+        });
+
+        // Event listener for start button
+        startButton.addEventListener('click', () => {
+            startScreen.style.display = 'none';
+            updateGame();
+        });
+    </script>
+</body>
+</html>
